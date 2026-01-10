@@ -1,38 +1,90 @@
-import { type User, type InsertUser } from "@shared/schema";
-import { randomUUID } from "crypto";
-
-// modify the interface with any CRUD methods
-// you might need
+import { modules, forms, records, type Module, type InsertModule, type Form, type InsertForm, type RecordItem, type InsertRecord } from "@shared/schema";
+import { db } from "./db";
+import { eq } from "drizzle-orm";
 
 export interface IStorage {
-  getUser(id: string): Promise<User | undefined>;
-  getUserByUsername(username: string): Promise<User | undefined>;
-  createUser(user: InsertUser): Promise<User>;
+  // Modules
+  getModules(): Promise<Module[]>;
+  getModule(id: number): Promise<Module | undefined>;
+  createModule(module: InsertModule): Promise<Module>;
+  updateModule(id: number, module: Partial<InsertModule>): Promise<Module | undefined>;
+  deleteModule(id: number): Promise<void>;
+
+  // Forms
+  getFormsByModule(moduleId: number): Promise<Form[]>;
+  getForm(id: number): Promise<Form | undefined>;
+  createForm(form: InsertForm): Promise<Form>;
+  updateForm(id: number, form: Partial<InsertForm>): Promise<Form | undefined>;
+  deleteForm(id: number): Promise<void>;
+
+  // Records
+  getRecordsByForm(formId: number): Promise<RecordItem[]>;
+  createRecord(record: InsertRecord): Promise<RecordItem>;
+  deleteRecord(id: number): Promise<void>;
 }
 
-export class MemStorage implements IStorage {
-  private users: Map<string, User>;
-
-  constructor() {
-    this.users = new Map();
+export class DatabaseStorage implements IStorage {
+  // Module operations
+  async getModules(): Promise<Module[]> {
+    return await db.select().from(modules);
   }
 
-  async getUser(id: string): Promise<User | undefined> {
-    return this.users.get(id);
+  async getModule(id: number): Promise<Module | undefined> {
+    const [module] = await db.select().from(modules).where(eq(modules.id, id));
+    return module;
   }
 
-  async getUserByUsername(username: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(
-      (user) => user.username === username,
-    );
+  async createModule(insertModule: InsertModule): Promise<Module> {
+    const [module] = await db.insert(modules).values(insertModule).returning();
+    return module;
   }
 
-  async createUser(insertUser: InsertUser): Promise<User> {
-    const id = randomUUID();
-    const user: User = { ...insertUser, id };
-    this.users.set(id, user);
-    return user;
+  async updateModule(id: number, update: Partial<InsertModule>): Promise<Module | undefined> {
+    const [module] = await db.update(modules).set(update).where(eq(modules.id, id)).returning();
+    return module;
+  }
+
+  async deleteModule(id: number): Promise<void> {
+    await db.delete(modules).where(eq(modules.id, id));
+  }
+
+  // Form operations
+  async getFormsByModule(moduleId: number): Promise<Form[]> {
+    return await db.select().from(forms).where(eq(forms.moduleId, moduleId));
+  }
+
+  async getForm(id: number): Promise<Form | undefined> {
+    const [form] = await db.select().from(forms).where(eq(forms.id, id));
+    return form;
+  }
+
+  async createForm(insertForm: InsertForm): Promise<Form> {
+    const [form] = await db.insert(forms).values(insertForm).returning();
+    return form;
+  }
+
+  async updateForm(id: number, update: Partial<InsertForm>): Promise<Form | undefined> {
+    const [form] = await db.update(forms).set(update).where(eq(forms.id, id)).returning();
+    return form;
+  }
+
+  async deleteForm(id: number): Promise<void> {
+    await db.delete(forms).where(eq(forms.id, id));
+  }
+
+  // Record operations
+  async getRecordsByForm(formId: number): Promise<RecordItem[]> {
+    return await db.select().from(records).where(eq(records.formId, formId));
+  }
+
+  async createRecord(insertRecord: InsertRecord): Promise<RecordItem> {
+    const [record] = await db.insert(records).values(insertRecord).returning();
+    return record;
+  }
+
+  async deleteRecord(id: number): Promise<void> {
+    await db.delete(records).where(eq(records.id, id));
   }
 }
 
-export const storage = new MemStorage();
+export const storage = new DatabaseStorage();

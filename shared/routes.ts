@@ -1,5 +1,14 @@
 import { z } from 'zod';
-import { insertModuleSchema, insertFormSchema, insertRecordSchema, modules, forms, records } from './schema';
+import { 
+  insertModuleSchema, 
+  insertFormSchema, 
+  insertRecordSchema, 
+  insertDocumentTemplateSchema,
+  modules, 
+  forms, 
+  records,
+  documentTemplates
+} from './schema';
 
 export const errorSchemas = {
   validation: z.object({
@@ -112,7 +121,7 @@ export const api = {
     create: {
       method: 'POST' as const,
       path: '/api/forms/:formId/records',
-      input: z.object({ data: z.any() }), // JSON data
+      input: z.object({ data: z.any() }),
       responses: {
         201: z.custom<typeof records.$inferSelect>(),
         400: errorSchemas.validation,
@@ -121,6 +130,41 @@ export const api = {
     delete: {
       method: 'DELETE' as const,
       path: '/api/records/:id',
+      responses: {
+        204: z.void(),
+        404: errorSchemas.notFound,
+      },
+    },
+  },
+  templates: {
+    list: {
+      method: 'GET' as const,
+      path: '/api/modules/:moduleId/templates',
+      responses: {
+        200: z.array(z.custom<typeof documentTemplates.$inferSelect>()),
+      },
+    },
+    create: {
+      method: 'POST' as const,
+      path: '/api/modules/:moduleId/templates',
+      input: insertDocumentTemplateSchema.omit({ moduleId: true }),
+      responses: {
+        201: z.custom<typeof documentTemplates.$inferSelect>(),
+        400: errorSchemas.validation,
+      },
+    },
+    update: {
+      method: 'PUT' as const,
+      path: '/api/templates/:id',
+      input: insertDocumentTemplateSchema.partial(),
+      responses: {
+        200: z.custom<typeof documentTemplates.$inferSelect>(),
+        404: errorSchemas.notFound,
+      },
+    },
+    delete: {
+      method: 'DELETE' as const,
+      path: '/api/templates/:id',
       responses: {
         204: z.void(),
         404: errorSchemas.notFound,

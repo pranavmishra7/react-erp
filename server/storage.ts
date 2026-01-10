@@ -1,4 +1,10 @@
-import { modules, forms, records, type Module, type InsertModule, type Form, type InsertForm, type RecordItem, type InsertRecord } from "@shared/schema";
+import { 
+  modules, forms, records, documentTemplates,
+  type Module, type InsertModule, 
+  type Form, type InsertForm, 
+  type RecordItem, type InsertRecord,
+  type DocumentTemplate, type InsertDocumentTemplate
+} from "@shared/schema";
 import { db } from "./db";
 import { eq } from "drizzle-orm";
 
@@ -21,6 +27,13 @@ export interface IStorage {
   getRecordsByForm(formId: number): Promise<RecordItem[]>;
   createRecord(record: InsertRecord): Promise<RecordItem>;
   deleteRecord(id: number): Promise<void>;
+
+  // Document Templates
+  getTemplatesByModule(moduleId: number): Promise<DocumentTemplate[]>;
+  getTemplate(id: number): Promise<DocumentTemplate | undefined>;
+  createTemplate(template: InsertDocumentTemplate): Promise<DocumentTemplate>;
+  updateTemplate(id: number, template: Partial<InsertDocumentTemplate>): Promise<DocumentTemplate | undefined>;
+  deleteTemplate(id: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -84,6 +97,30 @@ export class DatabaseStorage implements IStorage {
 
   async deleteRecord(id: number): Promise<void> {
     await db.delete(records).where(eq(records.id, id));
+  }
+
+  // Template operations
+  async getTemplatesByModule(moduleId: number): Promise<DocumentTemplate[]> {
+    return await db.select().from(documentTemplates).where(eq(documentTemplates.moduleId, moduleId));
+  }
+
+  async getTemplate(id: number): Promise<DocumentTemplate | undefined> {
+    const [template] = await db.select().from(documentTemplates).where(eq(documentTemplates.id, id));
+    return template;
+  }
+
+  async createTemplate(insertTemplate: InsertDocumentTemplate): Promise<DocumentTemplate> {
+    const [template] = await db.insert(documentTemplates).values(insertTemplate).returning();
+    return template;
+  }
+
+  async updateTemplate(id: number, update: Partial<InsertDocumentTemplate>): Promise<DocumentTemplate | undefined> {
+    const [template] = await db.update(documentTemplates).set(update).where(eq(documentTemplates.id, id)).returning();
+    return template;
+  }
+
+  async deleteTemplate(id: number): Promise<void> {
+    await db.delete(documentTemplates).where(eq(documentTemplates.id, id));
   }
 }
 

@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { api } from "@shared/routes";
 import { z } from "zod";
-import { insertModuleSchema, insertFormSchema } from "@shared/schema";
+import { insertModuleSchema, insertFormSchema, insertDocumentTemplateSchema } from "@shared/schema";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -68,11 +68,8 @@ export async function registerRoutes(
 
   app.post(api.forms.create.path, async (req, res) => {
     try {
-      // The schema expects moduleId but the API contract omits it from input
-      // so we need to add it from params
       const data = insertFormSchema.omit({ moduleId: true }).parse(req.body);
       const fullData = { ...data, moduleId: Number(req.params.moduleId) };
-      // validate against full schema just in case, though we constructed it
       const form = await storage.createForm(fullData as any);
       res.status(201).json(form);
     } catch (e) {
@@ -124,6 +121,45 @@ export async function registerRoutes(
     res.status(204).end();
   });
 
+  // Templates
+  app.get(api.templates.list.path, async (req, res) => {
+    const templates = await storage.getTemplatesByModule(Number(req.params.moduleId));
+    res.json(templates);
+  });
+
+  app.post(api.templates.create.path, async (req, res) => {
+    try {
+      const data = insertDocumentTemplateSchema.omit({ moduleId: true }).parse(req.body);
+      const fullData = { ...data, moduleId: Number(req.params.moduleId) };
+      const template = await storage.createTemplate(fullData as any);
+      res.status(201).json(template);
+    } catch (e) {
+      if (e instanceof z.ZodError) {
+        return res.status(400).json({ message: e.errors[0].message });
+      }
+      throw e;
+    }
+  });
+
+  app.put(api.templates.update.path, async (req, res) => {
+    try {
+      const data = insertDocumentTemplateSchema.partial().parse(req.body);
+      const template = await storage.updateTemplate(Number(req.params.id), data);
+      if (!template) return res.status(404).json({ message: "Template not found" });
+      res.json(template);
+    } catch (e) {
+      if (e instanceof z.ZodError) {
+        return res.status(400).json({ message: e.errors[0].message });
+      }
+      throw e;
+    }
+  });
+
+  app.delete(api.templates.delete.path, async (req, res) => {
+    await storage.deleteTemplate(Number(req.params.id));
+    res.status(204).end();
+  });
+
   // Seed Data
   await seedData();
 
@@ -131,8 +167,8 @@ export async function registerRoutes(
 }
 
 async function seedData() {
-  const modules = await storage.getModules();
-  if (modules.length === 0) {
+  const mods = await storage.getModules();
+  if (mods.length === 0) {
     const hrModule = await storage.createModule({
       name: "Human Resources",
       description: "Manage employees and departments",
@@ -146,7 +182,7 @@ async function seedData() {
     });
 
     // Create Employee Form
-    await storage.createForm({
+    const empForm = await storage.createForm({
       moduleId: hrModule.id,
       name: "Employees",
       description: "Employee directory",
@@ -160,7 +196,7 @@ async function seedData() {
     });
 
     // Create Lead Form
-    await storage.createForm({
+    const leadForm = await storage.createForm({
       moduleId: salesModule.id,
       name: "Leads",
       description: "Sales leads",
@@ -170,6 +206,25 @@ async function seedData() {
         { key: "status", label: "Status", type: "select", required: true, options: ["New", "Contacted", "Qualified", "Lost"] },
         { key: "potentialValue", label: "Potential Value ($)", type: "number", required: false }
       ]
+    });
+
+    // Create a Sample Template for HR
+    await storage.createTemplate({
+      moduleId: hrModule.id,
+      formId: empForm.id,
+      name: "Employee Contract",
+      content: `
+        <div style="font-family: Arial, sans-serif; padding: 40px;">
+          <h1 style="text-align: center; color: #333;">Employment Agreement</h1>
+          <p>This agreement is made between the Company and <strong>{{firstName}} {{lastName}}</strong>.</p>
+          <p>The employee will begin their role in the <strong>{{department}}</strong> department on <strong>{{startDate}}</strong>.</p>
+          <div style="margin-top: 50px;">
+            <p>Signed: __________________________</p>
+            <p>Date: {{startDate}}</p>
+          </div>
+        </div>
+      `,
+      styles: "h1 { border-bottom: 2px solid #333; }"
     });
   }
 }
